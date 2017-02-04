@@ -1,0 +1,4 @@
+for each target campsite link
+1. select a date range
+2. check # available sites, if >=1 go to 3, otherwise try next date range and go to 1
+3.
