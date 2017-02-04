@@ -1,4 +1,4 @@
-import time
+import sys
 import os
 from splinter import Browser
 from selenium import webdriver
@@ -29,12 +29,17 @@ depart_date = 'Sat Jul 16 2017'
 
 # park_description->campsite->entry link
 target_parks = {
-    'yosemite': {
-        'north pines': 'https://www.recreation.gov/campsiteFilterAction.do?sitefilter=STANDARD%20NONELECTRIC&startIdx=0&contractCode=NRSO&parkId=70927',
-        'upper pines': 'https://www.recreation.gov/campsiteFilterAction.do?sitefilter=STANDARD%20NONELECTRIC&startIdx=0&contractCode=NRSO&parkId=70925',
-        'lower pines': 'https://www.recreation.gov/campsiteFilterAction.do?sitefilter=STANDARD%20NONELECTRIC&startIdx=0&contractCode=NRSO&parkId=70928'
+    # 'yosemite': {
+    #     'north pines': 'https://www.recreation.gov/campsiteFilterAction.do?sitefilter=STANDARD%20NONELECTRIC&startIdx=0&contractCode=NRSO&parkId=70927',
+    #     'upper pines': 'https://www.recreation.gov/campsiteFilterAction.do?sitefilter=STANDARD%20NONELECTRIC&startIdx=0&contractCode=NRSO&parkId=70925',
+    #     'lower pines': 'https://www.recreation.gov/campsiteFilterAction.do?sitefilter=STANDARD%20NONELECTRIC&startIdx=0&contractCode=NRSO&parkId=70928'
+    'lassen' : {
+        'summit lake south' : 'https://www.recreation.gov/campsiteFilterAction.do?sitefilter=STANDARD%20NONELECTRIC&startIdx=0&contractCode=NRSO&parkId=74046'
     }
 }
+
+site_user = ''
+site_password = ''
 
 def error(s):
     print 'ERROR - %s' % s
@@ -43,6 +48,9 @@ def error(s):
 def info(s):
     print 'INFO - %s' % s
 
+
+def warn(s):
+    print 'WARN - %s' % s
 
 def find_by_name(browser, name):
     ele_list = browser.find_by_name(name)
@@ -104,14 +112,16 @@ def get_avails_from_search(b, arrive_date, depart_date):
 
 
 def get_site_no2link(rows, num_avails_pg_1):
-    no2link = {}
+    no2link_list = []
     for i in range(0, num_avails_pg_1):
         col0 = rows[i].find_by_tag('td').first
         site_a = col0.find_by_tag('a').last
         link = site_a['href']
         no = site_a.value
-        no2link[no] = link
-    return no2link
+        no2link_list.append([no, link])
+        info('column - %d site no - %s link - %s' % (i + 1, no, link))
+    return no2link_list
+
 
 def try_book_first_avail(camp_entry_url):
     b = Browser(driver_name='chrome')
@@ -123,12 +133,60 @@ def try_book_first_avail(camp_entry_url):
     rows = get_table_rows(b)
     num_rows_pg_1 = len(rows)
     info('number of sites in first page: %s' % str(num_rows_pg_1))
-    no2link = get_site_no2link()
-    #TODO: try to book first available site and return
+    no2link_list = get_site_no2link(rows, num_avails_pg_1)
+    # TODO: try to book first available site and return
 
-    for k in no2link:
-        print k + '\t' + no2link[k]
+    # make sure first ones are standard nonelectric
+    for no2link in no2link_list:
+        site_link = no2link[1]
+        b.visit(site_link)
+        # TODO: might need to fill the date again
+        # TODO: might suddenly become unavailable, should try next
+        book_btn = find_by_text(b, 'Book these Dates')
+        book_btn.click()
+        # since there this site become unavailable to others
+        # we can move forward manually
 
+        warn('from here one site is booked, fill the form manually')
+        line = raw_input('after you complete the purchase, type exit and enter:')
+        if  line.lower() == 'exit':
+            info('exitting...')
+            sys.exit(0)
+
+
+        # Sign In Page: TODO: stop here and manually fill the form
+        div = b.find_by_css('#combinedFlowSignInKit_emailGroup_attrs')
+        email_box = div.first.find_by_tag('input').first
+        email_box.fill(site_user)
+
+        div = b.find_by_css('#combinedFlowSignInKit_passwrdGroup_attrs')
+        pswd_box = div.first.find_by_tag('input').first
+        pswd_box.fill(site_password)
+
+        submit_btn = find_by_name(b, 'submitForm')
+        submit_btn.click()
+
+        # Order Details Page:
+        txt_num_occupants = find_by_id(b, 'numoccupants')
+        txt_num_occupants.fill(6)
+        txt_num_vehicles = find_by_id(b, 'numvehicles')
+        txt_num_vehicles.fill(1)
+
+        radio_primary_occu = find_by_name(b, 'primaryOccupant')
+        radio_primary_occu.click()
+
+        chk_box = find_by_name(b, 'agreementAccepted')
+        chk_box.click()
+
+        # Review Cart Page
+        to_cart_btn = find_by_id(b, 'continueshop')
+        to_cart_btn.click()
+
+        # Order Summary Page: review and click checkout
+
+        # Checkout Page: credit card and complete purchase
+
+        print ''
     return True
 
 
